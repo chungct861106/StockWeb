@@ -8,13 +8,33 @@ from bs4 import BeautifulSoup
 tz = timezone('Asia/Taipei')
 StockDataProfile = 'StockDataBase.json'
 
+        
+def GetStockInfo(string, Single=False, No=False):
+    url = 'https://isin.twse.com.tw/isin/single_main.jsp'
+    try:
+        num = int(string)
+        params = {'owncode':string}
+    except:
+        params = {'stockname':string}
+    res = requests.get(url=url, params=params).text
+    soup = BeautifulSoup(res, features="lxml")
+    d = [str(tag.string) for tag in soup.findAll('td')]
+    d = d[0:min(200, len(d))]
+    if No is not True:
+        names = ["{} ({})".format(d[10*n + 3], d[10*n + 2]) for n in range(1,int(len(d)/10))]
+    else:
+        names = [d[10*n + 2] for n in range(1,int(len(d)/10))]
+    if Single:
+        return names[0]
+    else:
+        return names
 
 class JsonStockData:
     def __init__(self):
         self.stock_df = dict()
         self.stocks = list()
         self.sets = dict()
-        with open("StockDataBase.json") as f:
+        with open("StockDataBase.json", encoding="utf-8") as f:
             Info = json.load(f)
             self.stocks = Info['stocks']
             if len(Info['sets']) > 0:
@@ -104,6 +124,8 @@ class JsonStockData:
                 
                 
     def DeleteStock(self, name):
+        if name.find(" ")!=-1:
+            name = name.split(" ")[1][1:-1]
         if name in self.stock_df:
             del self.stock_df[name]
         else:
@@ -114,7 +136,8 @@ class JsonStockData:
         save_dict = dict()
         for stock in self.stock_df:
             save_dict[stock] = self.stock_df[stock].to_dict()
-        output = {'sets':self.sets, 'stocks':save_dict}
+        now = datetime.datetime.now().strftime("%Y-%m-%d %I:%M")
+        output = {'sets':self.sets, 'stocks':save_dict, 'LastUpdate':now}
         with open('StockDataBase.json', 'w', encoding='utf-8') as f:
             json.dump(output, f, ensure_ascii=False, indent=4)
     
@@ -134,6 +157,12 @@ class JsonStockData:
     
     def Set_add_Stock(self, sets, stock):
         if stock not in self.sets[sets]:
+            if stock.find(" ") == -1:
+                stock = GetStockInfo(string=stock, Single=True)
+                print("Add stock: " + stock)
+            stockNo = stock.split(" ")[1][1:-1]
+            if stock not in self.stock_df:
+                self.NewStock(stockNo, from_date='2000-01-01')
             self.sets[sets].append(stock)
             self.Save()
         else:
@@ -143,27 +172,6 @@ class JsonStockData:
         if stock in self.sets[sets]:
             self.sets[sets].remove(stock)
         self.Save()
-
-        
-def GetStockInfo(string, Single=False):
-    url = 'https://isin.twse.com.tw/isin/single_main.jsp'
-    try:
-        num = int(string)
-        params = {'owncode':string}
-    except:
-        params = {'stockname':string}
-    res = requests.get(url=url, params=params).text
-    soup = BeautifulSoup(res, features="lxml")
-    d = [str(tag.string) for tag in soup.findAll('td')]
-    d = d[0:min(70, len(d))]
-    names = ["{} ({})".format(d[10*n + 3], d[10*n + 2]) for n in range(1,int(len(d)/10))]
-    options = [{'label':name, 'value':name} for name in names]
-    print(options)
-    if Single:
-        return options[0]['label']
-    else:
-        return options
-
 
 
 
