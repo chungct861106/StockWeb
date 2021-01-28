@@ -73,20 +73,20 @@ class JsonStockData:
         res3.reverse()
         weekday = {0:"Monday", 1:"Tuesday", 2:"Wensday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
         data = {
-                'open':res1['o'][0:length],
-                'close':res1['c'][0:length],
-                'high':res1['h'][0:length],
-                'low':res1['l'][0:length],
-                'margin buy':[line['marginBuy'] for line in res2[0:length]],
-                'margin sell':[line['marginSell'] for line in res2[0:length]],
-                'margin used ratio':[line['marginUsedPercent'] for line in res2[0:length]],
-                'short buy':[line['shortBuy'] for line in res2[0:length]],
-                'short sell':[line['shortSell'] for line in res2[0:length]],
-                'margin short ratio':[line['shortMarginPercent'] for line in res2[0:length]],
-                'dealer net add':[line['dealerNetBuySellVolume'] for line in res3[0:length]],
-                'domestic net add':[line['domesticNetBuySellVolume'] for line in res3[0:length]],
-                'foreign net add':[line['foreignNetBuySellVolume'] for line in res3[0:length]],
-                'total net add':[line['totalNetBuySellVolume'] for line in res3[0:length]]
+                'Open':res1['o'][0:length],
+                'Close':res1['c'][0:length],
+                'High':res1['h'][0:length],
+                'Low':res1['l'][0:length],
+                'Margin buy':[line['marginBuy'] for line in res2[0:length]],
+                'Margin sell':[line['marginSell'] for line in res2[0:length]],
+                'Margin used ratio':[line['marginUsedPercent'] for line in res2[0:length]],
+                'Short buy':[line['shortBuy'] for line in res2[0:length]],
+                'Short sell':[line['shortSell'] for line in res2[0:length]],
+                'Margin short ratio':[line['shortMarginPercent'] for line in res2[0:length]],
+                'Dealer net add':[line['dealerNetBuySellVolume'] for line in res3[0:length]],
+                'Domestic net add':[line['domesticNetBuySellVolume'] for line in res3[0:length]],
+                'Foreign net add':[line['foreignNetBuySellVolume'] for line in res3[0:length]],
+                'Total net add':[line['totalNetBuySellVolume'] for line in res3[0:length]]
         }
         
         df = pd.DataFrame(data)
@@ -97,7 +97,7 @@ class JsonStockData:
         df['date'] = [date.day for date in dates]
         df['weekday'] = [weekday[date.weekday()] for date in dates]
         df = df.sort_index(ascending=True)
-        df['rate']= df['open'].pct_change()
+        df['Rate']= df['Open'].pct_change()
         df = df.dropna()
         return df
 

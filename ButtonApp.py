@@ -3,11 +3,14 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly.express as px
+import dash_table
+import datetime
 import JsonStockData
+import pandas as pd
 
 base = JsonStockData.JsonStockData()
 current_options = []
-
+today = datetime.datetime.today()
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
@@ -31,10 +34,6 @@ Sets = [
         style={'height':'40px'}),
     html.Div(id='sets-result', style={'height':'32px'})]
 
-suggestions = []
-
-
-
 Stocks = [
     html.H6("Select Stock"),
     dcc.Dropdown(id='select-stock-input',
@@ -45,9 +44,7 @@ Stocks = [
         dcc.Input(value='Stock Name/ID', id='new-stock-input', style={'float':'left'}, list='list-suggested-inputs'),
         html.Button(id='submit-new-stock', n_clicks=0, children='Create Stock', style={'float':'right'}, disabled=True)],
         style={'height':'32px'}),
-    html.Datalist(
-        id='list-suggested-inputs', 
-        children=[html.Option(value=word) for word in suggestions]),
+    html.Datalist(id='list-suggested-inputs'),
     html.H6("Delete Stock", id='del-stock-name'),
     html.Div([
         dcc.Dropdown(options = [],
@@ -67,7 +64,6 @@ SelectStocks = html.Div([
                 html.Div(Stocks, style={"width": "450px",'height':'300px','float':'right'}),],
                 style={'columnCount': 1, 'width':'950px', 'margin': '0 auto','border-bottom': 'double'})
 
-Overview = dcc.Graph()
 
 weekday_options = [
             {'label': 'All', 'value': 'all'},
@@ -76,8 +72,6 @@ weekday_options = [
             {'label': 'Wed', 'value': 'Wednesday', 'disabled':True},
             {'label': 'Thur', 'value': 'Thursday', 'disabled':True},
             {'label': 'Fri', 'value': 'Friday', 'disabled':True},
-            {'label': 'Sat', 'value': 'Saturday', 'disabled':True},
-            {'label': 'Sun', 'value': 'Sunday', 'disabled':True},
         ]
 month_options = [
             {'label': 'All', 'value': 'all'},
@@ -96,32 +90,103 @@ month_options = [
         ]
 
 DataFilter = html.Div([
-    html.Label('Weekdays'),
-    dcc.Checklist(id='weekday-filter',
-        options=list([
-            {'label': 'All', 'value': 'all'},
-        ]),
-        value=['all'],
-        labelStyle={'display': 'inline-block'},
-        style = {'width':'400px'}),
-    html.Label('Month'),
-    dcc.Checklist(id='month-filter',
-        options=list([
-            {'label': 'All', 'value': 'all'},
-        ]),
-        value=['all'],
-        labelStyle={'display': 'inline-block'},
-        style = {'width':'380px'}),
+    html.Div([
+        html.Label('Weekdays'),
+        dcc.Checklist(id='weekday-filter',
+            options=list([
+                {'label': 'All', 'value': 'all'},
+            ]),
+            value=['all'],
+            labelStyle={'display': 'inline-block'})],
+        style = {'float':'left','width':'400px', 'height':'65px'}),
+    html.Div([
+        html.Label('Date Range'),
+        dcc.DatePickerRange(id='date-range-filter',
+            with_portal=True,
+            end_date= datetime.date(today.year, today.month, today.day),
+            start_date=datetime.date(2010,1,1),
+            display_format='Y-M-D',
+            start_date_placeholder_text='MM-DD-Y-Q'
+            )],
+        style = {'float':'right','width':'300px','height':'65px'}
+        ),
+    html.Div([
+        html.Label('Month'),
+        dcc.Checklist(id='month-filter',
+            options=list([
+                {'label': 'All', 'value': 'all'},
+            ]),
+            value=['all'],
+            labelStyle={'display': 'inline-block'}),
+        ],
+        style = {'float':'left','width':'580px', 'height':'65px'})],
+    style={'width':'950px', 'height':'130px','margin': '0 auto','border-bottom': 'double'})
+
+col = ['Date','No','Open', 'Close', 'High', 'Low', 'Margin buy', 'Margin sell', 'Short buy', 'Short sell', 'Total net add', 'Rate']
+
+tabs_styles = {
+    'height': '44px'
+}
+tab_style = {
+    'borderBottom': '1px solid #d6d6d6',
+    'padding': '6px',
+    'fontWeight': 'bold'
+}
+
+tab_selected_style = {
+    'borderTop': '1px solid #d6d6d6',
+    'borderBottom': '1px solid #d6d6d6',
+    'backgroundColor': '#119DFF',
+    'color': 'white',
+    'padding': '6px'
+}
+
+
+
+
+Plots = html.Div(
+     dcc.Tabs(id="tabs-styled-with-inline", value='OV', children=[
+        dcc.Tab(label='Overview', value='OV', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Probability Density', value='PDF', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Linear Regression', value='LG', style=tab_style, selected_style=tab_selected_style)
+    ], style=tabs_styles),
+    style={'width':'950px', 'height':'600px','margin': '0 auto','border-bottom': 'double'})
+
+
+DataTable = html.Div([dash_table.DataTable(
+    id='datatable',
+    columns=[{"name": i, "id": i} for i in col],
+    page_size=30,
+    filter_action="native",
+    sort_action="native",
+    fixed_columns={'headers':True},
+    style_cell={
+        'whiteSpace': 'normal',
+        'height': 'auto',
+        'textAlign': 'left'
+    },
+    style_table={'height': '300px', 'overflowY': 'auto'},
+    style_data_conditional=[
+        {
+            'if': {'row_index': 'odd'},
+            'backgroundColor': 'rgb(248, 248, 248)'
+        }
     ],
-    style={'columnCount': 1, 'width':'950px', 'margin': '0 auto','border-bottom': 'double'})
+    style_header={
+        'backgroundColor': 'rgb(230, 230, 230)',
+        'fontWeight': 'bold'
+    }
+)], style={'width':'950px', 'height':'320px','margin': '0 auto','border-bottom': 'double'})
+
+
 @app.callback(Output('weekday-filter', 'options'), Input('weekday-filter', 'value'))
 def Select_weekday(weekdays):
     options = weekday_options
     if 'all' in weekdays:
-        for i in range(1,8):
+        for i in range(1,6):
             options[i]['disabled'] = True
     else:
-        for i in range(1,8):
+        for i in range(1,6):
             options[i]['disabled'] = False
     return options
 
@@ -136,50 +201,37 @@ def Select_month(months):
             options[i]['disabled'] = False
     return options
 
-        
-    
-        
-# Tabs = html.Div([
-#      dcc.Tabs(id='tabs-example', value='tab-1', children=[
-#         dcc.Tab(label='Tab one', children=[
-#             dcc.Graph(
-#                 figure={
-#                     'data': [
-#                         {'x': [1, 2, 3], 'y': [4, 1, 2],
-#                             'type': 'bar', 'name': 'SF'},
-#                         {'x': [1, 2, 3], 'y': [2, 4, 5],
-#                          'type': 'bar', 'name': u'Montréal'},
-#                     ]
-#                 }
-#             )
-#         ]),
-#         dcc.Tab(label='Tab two', children=[
-#             dcc.Graph(
-#                 figure={
-#                     'data': [
-#                         {'x': [1, 2, 3], 'y': [1, 4, 1],
-#                             'type': 'bar', 'name': 'SF'},
-#                         {'x': [1, 2, 3], 'y': [1, 2, 3],
-#                          'type': 'bar', 'name': u'Montréal'},
-#                     ]
-#                 }
-#             )
-#         ]),
-#         dcc.Tab(label='Tab three', children=[
-#             dcc.Graph(
-#                 figure={JsonStockData.test_plot()}
-#             )
-#         ])
-#     ])],
-#     style={'text-align':'center',
-#            'height':'600px','width':'950px',
-#            'border-bottom': 'double',
-#            'border-right': 'double',
-#            'border-left':'double',
-#            'margin': '0 auto'}
-#     )
 
-app.layout = html.Div([head, SelectStocks, DataFilter])
+@app.callback(Output('datatable','data'), 
+              Input('weekday-filter', 'value'),
+              Input('month-filter', 'value'),
+              Input('date-range-filter','start_date'),
+              Input('date-range-filter','end_date'),
+              Input('select-stock-input', 'value'))
+def datafilter(limit_weekday, limit_month, min_date, max_date, stocks):   
+    if stocks != None and len(stocks) > 0:
+        stocks = [stock.split(' ')[1][1:-1] for stock in stocks if stock.find(" ")!=-1]
+    else:
+        return None
+    output = list()
+    for stock in stocks:
+        df = base.stock_df[stock]
+        df['Date'] = df.index
+        df = df.loc[(df['Date']<max_date) & (df['Date']>min_date)]
+        if 'all' not in limit_weekday and len(limit_weekday) > 0:
+            mask1 = [day in limit_weekday for day in df['weekday']]
+            df = df.loc[mask1]
+        if 'all' not in limit_month and len(limit_month) > 0:
+            mask2 = [month in limit_month for month in df['month']]
+            df = df.loc[mask2]
+        df['No'] = [stock]*len(df)
+        col = ['Date','No','Open', 'Close', 'High', 'Low', 'Margin buy', 'Margin sell', 'Short buy', 'Short sell', 'Total net add', 'Rate']
+        df = df.filter(col)
+        df["Rate"] = (100 * df['Rate']).round(2)
+        output.append(df)
+    df = pd.concat(output)
+    return df.to_dict('records')
+        
 
 
 @app.callback([Output('sets-result', 'children'),
@@ -259,6 +311,6 @@ def SetSelected(set_name, btn1, btn2, NewName, DelName):
             options = [{'label':key, 'value':key} for key in base.sets[set_name]]
     return [False, False, options, options, word, ""]
 
-
+app.layout = html.Div([head, SelectStocks, DataFilter, Plots, DataTable])
 if __name__ == '__main__':
     app.run_server(debug=True)
