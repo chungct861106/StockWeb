@@ -2,6 +2,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
+import plotly.express as px
 import JsonStockData
 
 base = JsonStockData.JsonStockData()
@@ -66,9 +67,119 @@ SelectStocks = html.Div([
                 html.Div(Stocks, style={"width": "450px",'height':'300px','float':'right'}),],
                 style={'columnCount': 1, 'width':'950px', 'margin': '0 auto','border-bottom': 'double'})
 
+Overview = dcc.Graph()
 
+weekday_options = [
+            {'label': 'All', 'value': 'all'},
+            {'label': 'Mon', 'value': 'Monday', 'disabled':True},
+            {'label': 'Tue', 'value': 'Tuesday', 'disabled':True},
+            {'label': 'Wed', 'value': 'Wednesday', 'disabled':True},
+            {'label': 'Thur', 'value': 'Thursday', 'disabled':True},
+            {'label': 'Fri', 'value': 'Friday', 'disabled':True},
+            {'label': 'Sat', 'value': 'Saturday', 'disabled':True},
+            {'label': 'Sun', 'value': 'Sunday', 'disabled':True},
+        ]
+month_options = [
+            {'label': 'All', 'value': 'all'},
+            {'label': 'Jan', 'value': 1, 'disabled':True},
+            {'label': 'Feb', 'value': 2, 'disabled':True},
+            {'label': 'Mar', 'value': 3, 'disabled':True},
+            {'label': 'Apl', 'value': 4, 'disabled':True},
+            {'label': 'May', 'value': 5, 'disabled':True},
+            {'label': 'Jun', 'value': 6, 'disabled':True},
+            {'label': 'Jul', 'value': 7, 'disabled':True},
+            {'label': 'Aug', 'value': 8, 'disabled':True},
+            {'label': 'Set', 'value': 9, 'disabled':True},
+            {'label': 'Oct', 'value': 10, 'disabled':True},
+            {'label': 'Nov', 'value': 11, 'disabled':True},
+            {'label': 'Dec', 'value': 12, 'disabled':True},
+        ]
 
-app.layout = html.Div([head, SelectStocks])
+DataFilter = html.Div([
+    html.Label('Weekdays'),
+    dcc.Checklist(id='weekday-filter',
+        options=list([
+            {'label': 'All', 'value': 'all'},
+        ]),
+        value=['all'],
+        labelStyle={'display': 'inline-block'},
+        style = {'width':'400px'}),
+    html.Label('Month'),
+    dcc.Checklist(id='month-filter',
+        options=list([
+            {'label': 'All', 'value': 'all'},
+        ]),
+        value=['all'],
+        labelStyle={'display': 'inline-block'},
+        style = {'width':'380px'}),
+    ],
+    style={'columnCount': 1, 'width':'950px', 'margin': '0 auto','border-bottom': 'double'})
+@app.callback(Output('weekday-filter', 'options'), Input('weekday-filter', 'value'))
+def Select_weekday(weekdays):
+    options = weekday_options
+    if 'all' in weekdays:
+        for i in range(1,8):
+            options[i]['disabled'] = True
+    else:
+        for i in range(1,8):
+            options[i]['disabled'] = False
+    return options
+
+@app.callback(Output('month-filter', 'options'), Input('month-filter', 'value'))
+def Select_month(months):
+    options = month_options
+    if 'all' in months:
+        for i in range(1,13):
+            options[i]['disabled'] = True
+    else:
+        for i in range(1,13):
+            options[i]['disabled'] = False
+    return options
+
+        
+    
+        
+# Tabs = html.Div([
+#      dcc.Tabs(id='tabs-example', value='tab-1', children=[
+#         dcc.Tab(label='Tab one', children=[
+#             dcc.Graph(
+#                 figure={
+#                     'data': [
+#                         {'x': [1, 2, 3], 'y': [4, 1, 2],
+#                             'type': 'bar', 'name': 'SF'},
+#                         {'x': [1, 2, 3], 'y': [2, 4, 5],
+#                          'type': 'bar', 'name': u'Montréal'},
+#                     ]
+#                 }
+#             )
+#         ]),
+#         dcc.Tab(label='Tab two', children=[
+#             dcc.Graph(
+#                 figure={
+#                     'data': [
+#                         {'x': [1, 2, 3], 'y': [1, 4, 1],
+#                             'type': 'bar', 'name': 'SF'},
+#                         {'x': [1, 2, 3], 'y': [1, 2, 3],
+#                          'type': 'bar', 'name': u'Montréal'},
+#                     ]
+#                 }
+#             )
+#         ]),
+#         dcc.Tab(label='Tab three', children=[
+#             dcc.Graph(
+#                 figure={JsonStockData.test_plot()}
+#             )
+#         ])
+#     ])],
+#     style={'text-align':'center',
+#            'height':'600px','width':'950px',
+#            'border-bottom': 'double',
+#            'border-right': 'double',
+#            'border-left':'double',
+#            'margin': '0 auto'}
+#     )
+
+app.layout = html.Div([head, SelectStocks, DataFilter])
 
 
 @app.callback([Output('sets-result', 'children'),

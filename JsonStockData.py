@@ -5,14 +5,14 @@ import datetime
 import time
 from pytz import timezone
 from bs4 import BeautifulSoup
+
 tz = timezone('Asia/Taipei')
 StockDataProfile = 'StockDataBase.json'
-
-        
+  
 def GetStockInfo(string, Single=False, No=False):
     url = 'https://isin.twse.com.tw/isin/single_main.jsp'
     try:
-        num = int(string)
+        int(string)
         params = {'owncode':string}
     except:
         params = {'stockname':string}
@@ -28,7 +28,7 @@ def GetStockInfo(string, Single=False, No=False):
         return names[0]
     else:
         return names
-
+checking = []
 class JsonStockData:
     def __init__(self):
         self.stock_df = dict()
@@ -51,7 +51,10 @@ class JsonStockData:
             to = datetime.datetime.strptime(to, "%Y-%m-%d")
         else:
             to = start - datetime.timedelta(day=1)
+        
         stock_url = "https://ws.api.cnyes.com/ws/api/v1/charting/history"
+        market_url = 'https://marketinfo.api.cnyes.com/mi/api/v1/TWS:{}:STOCK/marginTrading'.format(stock)
+        invest_url = "https://marketinfo.api.cnyes.com/mi/api/v1/investors/buysell/TWS:{}:STOCK".format(stock)
         params={
                 'resolution':'D',
                 'symbol':'TWS:{}:STOCK'.format(stock),
@@ -60,16 +63,47 @@ class JsonStockData:
                 'quote':1
         }
         
-        res = requests.get(url=stock_url, params=params).json()['data']
+        res1 = requests.get(url=stock_url, params=params).json()['data']
+        
+        params = {'from':params['from'], 'to':params['to']}
+        res2 = requests.get(url=market_url, params=params).json()['data']
+        res3 = requests.get(url=invest_url, params=params).json()['data']
+        length = min(len(res1['t']), len(res2), len(res3))
+        res2.reverse()
+        res3.reverse()
+        weekday = {0:"Monday", 1:"Tuesday", 2:"Wensday", 3:"Thursday", 4:"Friday", 5:"Saturday", 6:"Sunday"}
         data = {
-                'open':res['o'],
-                'close':res['c'],
-                'high':res['h'],
-                'low':res['l'],
-                'value':res['v']
+                'open':res1['o'][0:length],
+                'close':res1['c'][0:length],
+                'high':res1['h'][0:length],
+                'low':res1['l'][0:length],
+                'margin buy':[line['marginBuy'] for line in res2[0:length]],
+                'margin sell':[line['marginSell'] for line in res2[0:length]],
+                'margin used ratio':[line['marginUsedPercent'] for line in res2[0:length]],
+                'short buy':[line['shortBuy'] for line in res2[0:length]],
+                'short sell':[line['shortSell'] for line in res2[0:length]],
+                'margin short ratio':[line['shortMarginPercent'] for line in res2[0:length]],
+                'dealer net add':[line['dealerNetBuySellVolume'] for line in res3[0:length]],
+                'domestic net add':[line['domesticNetBuySellVolume'] for line in res3[0:length]],
+                'foreign net add':[line['foreignNetBuySellVolume'] for line in res3[0:length]],
+                'total net add':[line['totalNetBuySellVolume'] for line in res3[0:length]]
         }
-        return pd.DataFrame(data, index=[datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d") for t in res['t']])
+        
+        df = pd.DataFrame(data)
+        dates = [datetime.datetime.fromtimestamp(t) for t in res1['t'][0:length]]
+        df.index = [date.strftime("%Y-%m-%d") for date in dates]
+        df['year'] = [date.year for date in dates]
+        df['month'] = [date.month for date in dates]
+        df['date'] = [date.day for date in dates]
+        df['weekday'] = [weekday[date.weekday()] for date in dates]
+        df = df.sort_index(ascending=True)
+        df['rate']= df['open'].pct_change()
+        df = df.dropna()
+        return df
 
+    def GetStock_test(self, stock=str(), start=None, to=None):
+        return self.__getStock(stock=stock, start=start, to=to)
+    
     def update_stock(self, today=datetime.datetime.today().strftime("%Y-%m-%d"), from_date=str(), NewStocks=list()):
         total_stocks = list(self.stocks.keys())
         for stock in NewStocks:
@@ -161,7 +195,8 @@ class JsonStockData:
                 stock = GetStockInfo(string=stock, Single=True)
                 print("Add stock: " + stock)
             stockNo = stock.split(" ")[1][1:-1]
-            if stock not in self.stock_df:
+            if stockNo not in self.stock_df:
+                print("in")
                 self.NewStock(stockNo, from_date='2000-01-01')
             self.sets[sets].append(stock)
             self.Save()
@@ -172,6 +207,3 @@ class JsonStockData:
         if stock in self.sets[sets]:
             self.sets[sets].remove(stock)
         self.Save()
-
-
-
