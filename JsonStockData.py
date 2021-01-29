@@ -1,4 +1,4 @@
-import json
+import simplejson as json
 import pandas as pd
 import requests
 import datetime
@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 
 tz = timezone('Asia/Taipei')
 StockDataProfile = 'StockDataBase.json'
+
   
 def GetStockInfo(string, Single=False, No=False):
     url = 'https://isin.twse.com.tw/isin/single_main.jsp'
@@ -31,6 +32,7 @@ def GetStockInfo(string, Single=False, No=False):
 checking = []
 class JsonStockData:
     def __init__(self):
+        self.current_df = list()
         self.stock_df = dict()
         self.stocks = list()
         self.sets = dict()
@@ -97,7 +99,7 @@ class JsonStockData:
         df['date'] = [date.day for date in dates]
         df['weekday'] = [weekday[date.weekday()] for date in dates]
         df = df.sort_index(ascending=True)
-        df['Rate']= df['Open'].pct_change()
+        df['Rate']= (df['Close']-df['Open']) / df['Open']
         df = df.dropna()
         return df
 

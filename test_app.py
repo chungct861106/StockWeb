@@ -1,68 +1,60 @@
+import plotly.graph_objects as go
+# from plotly.subplots import make_subplots
+import JsonStockData
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
+import plotly.express as px
 import dash_table
+import datetime
 import pandas as pd
-import json
+from plotly.subplots import make_subplots
+import numpy as np
+app = dash.Dash(__name__)
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-sets = dict()
-stock_df = dict()
-with open("StockDataBase.json", encoding="utf-8") as f:
-    Info = json.load(f)
-    stocks = Info['stocks']
-    if len(Info['sets']) > 0:
-        sets = Info['sets']
-        for stock in stocks:
-            stock_df[stock] = pd.DataFrame(stocks[stock])
-            
 
-choosen = ['0050', '00876']
-max_date = '2021-01-01'
-min_date = '2020-01-01'
-limit_month = [1, 2, 10, 12]
-limit_weekday = ['Monday','Wensday', 'Friday']
-output = list()
-for stock in choosen:
+base = JsonStockData.JsonStockData()
+stock_df = base.stock_df
+output= list()
+for stock in ['0050', '2330', '00881']:
     df = stock_df[stock]
-    df['Date'] = df.index
-    df = df.loc[(df['Date']<max_date) & (df['Date']>min_date)]
-    mask1 = [day in limit_weekday for day in df['weekday']]
-    df = df.loc[mask1]
-    mask2 = [month in limit_month for month in df['month']]
-    df = df.loc[mask2]
-    df['No'] = [stock]*len(df)
-    col = ['Date','No','Open', 'Close', 'High', 'Low', 'Margin buy', 'Margin sell', 'Short buy', 'Short sell', 'Total net add', 'Rate']
-    df = df.filter(col)
-    df["Rate"] = [ "%.2f%%" % (num*100) for num in df['Rate']]
+    df["No"] = len(df)*[stock]
     output.append(df)
-df =  pd.concat(output)
+df = pd.concat(output)
+    
+    
 
-app.layout = dash_table.DataTable(
-    id='datatable-paging',
-    columns=[{"name": i, "id": i} for i in col],
-    page_size=30,
-    fixed_columns={'headers':True},
-    style_cell={
-        'whiteSpace': 'normal',
-        'height': 'auto',
-        'textAlign': 'left'
-    },
-    fixed_rows={'headers': True},
-    style_table={'height': '300px', 'overflowY': 'auto'},
-    style_data_conditional=[
-        {
-            'if': {'row_index': 'odd'},
-            'backgroundColor': 'rgb(248, 248, 248)'
-        }
-    ],
-    style_header={
-        'backgroundColor': 'rgb(230, 230, 230)',
-        'fontWeight': 'bold'
-    }
-)
+app.layout = html.Div([
+    dash_table.DataTable(
+        id='datatable-row-ids',
+        columns=[{'name': i, 'id': i} for i in df.columns if i != 'id'],
+        data=df.to_dict('records'),
+        editable=True,
+        filter_action="native",
+        sort_action="native",
+        page_action='native',
+        page_current= 0,
+        page_size= 40,
+    ),
+    html.Div(id='datatable-row-ids-container')
+])
 
-app.run_server(debug=True)
+
+
+
+
+@app.callback(
+    Output('datatable-row-ids-container', 'children'),
+    Input('datatable-row-ids', 'derived_virtual_row_ids'))
+def update_graphs(row_ids):
+    fig = px.scatter_matrix(df,
+        dimensions=["Rate", "Open"],
+        color="No")
+    return [dcc.Graph(figure=fig)]
+
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
+

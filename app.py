@@ -2,14 +2,19 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
-import plotly.express as px
 import dash_table
 import datetime
 import JsonStockData
 import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
 
 base = JsonStockData.JsonStockData()
-current_options = []
+
+current_df = None
+
 today = datetime.datetime.today()
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -143,15 +148,113 @@ tab_selected_style = {
 
 
 
+Overview = html.Div([
+    html.H3("Choose Stock"),
+    dcc.Dropdown(id='overview-select', options = [{'label':JsonStockData.GetStockInfo(key, Single=True),
+                                                   'value':key} for key in base.stock_df]),
+    dcc.Graph(id='overview-plot')]
+    )
+@app.callback(Output('overview-plot', 'figure'),
+              Input('overview-select','value'))
+def OverViewPlot(stock):
+    if not stock:
+        return go.Figure()
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    stocks = base.stock_df[stock]
+    stocks["Color"] = np.where(stocks["Close"]-stocks['Open']>0, 'red', 'green')
+    Candlestick = go.Candlestick(x = stocks.index, open = stocks['Open'], 
+                                 high = stocks['High'], low = stocks['Low'], 
+                                 close = stocks['Close'], name='Stock Price',
+                                 increasing_line_color= 'red', decreasing_line_color= 'green')
+    Bar = go.Bar(x= stocks.index, y=abs(stocks['Close']-stocks['Open']), marker_color=stocks['Color'], name='Stock Growth')
+    fig.add_trace(Candlestick,secondary_y=True)
+    fig.add_trace(Bar,secondary_y=False)
+    fig.update_layout(
+        yaxis=dict(
+            range = [0,max(stocks['Open']/10)],
+            title="Growth",
+            titlefont=dict(
+            color="#1f77b4"
+            ),
+            tickfont=dict(
+                color="#1f77b4"
+            )
+        ),
+        yaxis2=dict(
+            range = [0,max(stocks['High'])],
+            title="Stock Price",
+            titlefont=dict(
+                color="#ff7f0e"
+            ),
+            tickfont=dict(
+                color="#ff7f0e"
+            )))
+    fig.update_yaxes(title_text = 'Price(NTD)', tickprefix = '$')
+    return fig
+
+
+col_obj = ['Margin buy', 'Margin sell', 'Short buy', 'Short sell', 'Total net add', 'Rate']
+col_options = [{'label':key, 'value': key} for key in col_obj]
+PDFs = html.Div([
+    html.H3("Choose Probabilibty Desity Object"),
+    dcc.Dropdown(id='PDF-object-input', options=col_options, value='Rate'),
+    html.Div(id='PDF-result'),
+    dcc.Graph(id='PDF-plot')])
+@app.callback([Output('PDF-plot', 'figure'), Output('PDF-result','children')], 
+              Input('datatable', 'derived_virtual_row_ids'),
+              Input('PDF-object-input','value'))
+def PDF_plot(row_ids, obj):
+    current_df = base.current_df
+    if len(current_df) == 0:
+        return [go.Figure(),""]
+    if row_ids is None:
+        dff = current_df
+        row_ids = dff['id']
+    else:
+        dff = current_df.loc[row_ids] 
+    x = dff[obj]
+    word = "Mean: %.2f    | Std: %.2f" % (x.mean(), x.std())
+    fig = make_subplots(rows=2, cols=1)
+    fig.append_trace(go.Histogram(x=x, histnorm='probability', name='PDF'), 1, 1)
+    fig.append_trace(go.Histogram(x=x, histnorm='probability', cumulative_enabled=True, name='CDF'), 2, 1)
+    return [fig, word]
+
+
+LGcol = ['Open', 'Close', 'High', 'Low','Rate',
+    'Margin buy','Margin sell','Margin used ratio',
+    'Short buy','Short sell','Margin short ratio',
+    'Dealer net add','Domestic net add','Foreign net add',
+    'Total net add']
+LG_options = [{'label': key, 'value':key} for key in LGcol]
+Linear = html.Div([
+    html.H3("Choose Comparison Objects"),
+    dcc.Dropdown(id='LG-obj', options=LG_options, multi=True, value=['Total net add', 'Rate']),
+    dcc.Graph(id='LG-plot')
+    ])
+@app.callback(Output('LG-plot', 'figure'), 
+              Input('datatable', 'derived_virtual_row_ids'),
+              Input('LG-obj','value'))
+def LG_plot(row_ids, obj):
+    current_df = base.current_df
+    if len(current_df) == 0:
+        return go.Figure()
+    fig = px.scatter_matrix(current_df, dimensions=obj, color="No")
+    return fig
+
 
 Plots = html.Div(
      dcc.Tabs(id="tabs-styled-with-inline", value='OV', children=[
-        dcc.Tab(label='Overview', value='OV', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Probability Density', value='PDF', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Linear Regression', value='LG', style=tab_style, selected_style=tab_selected_style)
+        dcc.Tab(label='Overview', value='OV', style=tab_style, selected_style=tab_selected_style, children=[Overview]),
+        dcc.Tab(label='Probability Density', value='PDF', style=tab_style, selected_style=tab_selected_style, children=[PDFs]),
+        dcc.Tab(label='Linear Regression', value='LG', style=tab_style, selected_style=tab_selected_style, children=[Linear])
     ], style=tabs_styles),
     style={'width':'950px', 'height':'600px','margin': '0 auto','border-bottom': 'double'})
 
+col = ['Date','No','Open', 'Close', 'High', 'Low', 'Rate',
+                'Margin buy','Margin sell','Margin used ratio',
+                'Short buy','Short sell','Margin short ratio',
+                'Dealer net add','Domestic net add','Foreign net add',
+                'Total net add']
 
 DataTable = html.Div([dash_table.DataTable(
     id='datatable',
@@ -160,12 +263,8 @@ DataTable = html.Div([dash_table.DataTable(
     filter_action="native",
     sort_action="native",
     fixed_columns={'headers':True},
-    style_cell={
-        'whiteSpace': 'normal',
-        'height': 'auto',
-        'textAlign': 'left'
-    },
-    style_table={'height': '300px', 'overflowY': 'auto'},
+    style_cell={'textAlign': 'left'},
+    style_table={'height': '300px', 'overflowY': 'auto', 'overflowX': 'auto'},
     style_data_conditional=[
         {
             'if': {'row_index': 'odd'},
@@ -225,14 +324,20 @@ def datafilter(limit_weekday, limit_month, min_date, max_date, stocks):
             mask2 = [month in limit_month for month in df['month']]
             df = df.loc[mask2]
         df['No'] = [stock]*len(df)
-        col = ['Date','No','Open', 'Close', 'High', 'Low', 'Margin buy', 'Margin sell', 'Short buy', 'Short sell', 'Total net add', 'Rate']
+        col = ['Date','No','Open', 'Close', 'High', 'Low', 'Rate',
+                'Margin buy','Margin sell','Margin used ratio',
+                'Short buy','Short sell','Margin short ratio',
+                'Dealer net add','Domestic net add','Foreign net add',
+                'Total net add']
         df = df.filter(col)
         df["Rate"] = (100 * df['Rate']).round(2)
         output.append(df)
     df = pd.concat(output)
+    df.index = range(len(df))
+    df['id'] = df.index
+    base.current_df = df
     return df.to_dict('records')
         
-
 
 @app.callback([Output('sets-result', 'children'),
                Output('new-sets-input','value'),
